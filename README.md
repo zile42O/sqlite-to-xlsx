@@ -2,7 +2,7 @@
 
 ### Usage
 
-Simple golang program, xlsx files will be into `out` folder
+Simple golang program, xlsx files will be into `out` folder, clone this git directory and put your .db file inside folder, do *build* and *run*.
 
 ### Build
 ```
