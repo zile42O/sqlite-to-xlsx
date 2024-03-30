@@ -36,76 +36,76 @@ func main() {
 	defer db.Close()
 
 	tables, err := getTableNames(db)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	for _, table := range tables {
-		rows, err := db.Query("SELECT * FROM " + table)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer rows.Close()
-
-		file := xlsx.NewFile()
-		sheet, err := file.AddSheet(table + "-sheet")
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		columns, err := rows.Columns()
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		headerRow := sheet.AddRow()
-		for _, column := range columns {
-			cell := headerRow.AddCell()
-			cell.SetString(column)
-		}
-
-		for i := range columns {
-			sheet.SetColWidth(i, i, 12)
-
-			maxLen := len(columns[i])
-			rows, err := db.Query("SELECT " + columns[i] + " FROM " + table)
+	if err == nil {
+		for _, table := range tables {
+			rows, err := db.Query("SELECT * FROM " + table)
 			if err != nil {
-				log.Fatal(err)
+				continue
 			}
 			defer rows.Close()
+
+			file := xlsx.NewFile()
+			sheet, err := file.AddSheet(table + "-sheet")
+			if err != nil {
+				continue
+			}
+
+			columns, err := rows.Columns()
+			if err != nil {
+				continue
+			}
+
+			headerRow := sheet.AddRow()
+			for _, column := range columns {
+				cell := headerRow.AddCell()
+				cell.SetString(column)
+			}
+
+			for i := range columns {
+				sheet.SetColWidth(i, i, 12)
+
+				maxLen := len(columns[i])
+				rows, err := db.Query("SELECT " + columns[i] + " FROM " + table)
+				if err != nil {
+					continue
+				}
+				defer rows.Close()
+				for rows.Next() {
+					var value string
+					if err := rows.Scan(&value); err != nil {
+						continue
+					}
+					if len(value) > maxLen {
+						maxLen = len(value)
+					}
+				}
+
+				if maxLen > 12 {
+					sheet.SetColWidth(i, i, float64(maxLen))
+				}
+			}
+
+			values := make([]interface{}, len(columns))
+			for i := range values {
+				values[i] = new(interface{})
+			}
 			for rows.Next() {
-				var value string
-				if err := rows.Scan(&value); err != nil {
-					log.Fatal(err)
-				}
-				if len(value) > maxLen {
-					maxLen = len(value)
-				}
-			}
-
-			if maxLen > 12 {
-				sheet.SetColWidth(i, i, float64(maxLen))
-			}
-		}
-
-		values := make([]interface{}, len(columns))
-		for i := range values {
-			values[i] = new(interface{})
-		}
-		for rows.Next() {
-			if err := rows.Scan(values...); err == nil {
-				row := sheet.AddRow()
-				for _, value := range values {
-					cell := row.AddCell()
-					cell.SetValue(*value.(*interface{}))
+				if err := rows.Scan(values...); err == nil {
+					row := sheet.AddRow()
+					for _, value := range values {
+						cell := row.AddCell()
+						cell.SetValue(*value.(*interface{}))
+					}
 				}
 			}
+			err = file.Save("out/" + dbName + "_" + table + ".xlsx")
+			if err != nil {
+				color.Red("Failed to save file: %s", err)
+			}
+			color.Green("Excel file for table '%s' successfully created.\n", table)
 		}
-		err = file.Save("out/" + dbName + "_" + table + ".xlsx")
-		if err != nil {
-			color.Red("Failed to save file: %s", err)
-		}
-		color.Green("Excel file for table '%s' successfully created.\n", table)
+	} else {
+		color.Red("Failed to get tables")
 	}
 	color.Cyan("Program finished..")
 	color.Red("----------------------")
